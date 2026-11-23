@@ -9,6 +9,75 @@ import {
 
 export const MAX_ENEMIES = 220;
 
+export interface EnemyCompendiumEntry {
+  type: EnemyType;
+  name: string;
+  spawnWindow: string;
+  hp: number;
+  damage: number;
+  speed: number;
+  xpValue: number;
+  description: string;
+}
+
+export const ENEMY_COMPENDIUM: EnemyCompendiumEntry[] = [
+  {
+    type: 'bat',
+    name: 'Kelelawar Malam',
+    spawnWindow: '00:00+',
+    hp: 14,
+    damage: 6,
+    speed: 48,
+    xpValue: 1,
+    description:
+      'Gesit dan sering menyerang dalam gerombolan kawanan mulai detik ke-35. Menjatuhkan kristal XP biru.',
+  },
+  {
+    type: 'skeleton',
+    name: 'Prajurit Tengkorak',
+    spawnWindow: '00:00+',
+    hp: 26,
+    damage: 9,
+    speed: 36,
+    xpValue: 2,
+    description:
+      'Pasukan tulang berkarat dengan ketahanan sedang yang terus menekan dari segala arah.',
+  },
+  {
+    type: 'zombie',
+    name: 'Mayat Hidup',
+    spawnWindow: '00:35+',
+    hp: 56,
+    damage: 13,
+    speed: 25,
+    xpValue: 5,
+    description:
+      'Berjalan lambat namun memiliki darah tebal dan pukulan berat. Menjatuhkan kristal XP hijau.',
+  },
+  {
+    type: 'wraith',
+    name: 'Arwah Bayangan',
+    spawnWindow: '01:30+',
+    hp: 44,
+    damage: 15,
+    speed: 44,
+    xpValue: 7,
+    description:
+      'Roh berjubah cepat dengan serangan mematikan di gelombang pertengahan hingga akhir.',
+  },
+  {
+    type: 'boss',
+    name: 'Raja Tengkorak',
+    spawnWindow: 'Setiap 02:00',
+    hp: 540,
+    damage: 24,
+    speed: 34,
+    xpValue: 100,
+    description:
+      'Penguasa kuburan bermahkota emas. Tahan knockback, menjatuhkan 5 kristal merah, Daging Panggang, dan Chest!',
+  },
+];
+
 interface EnemyTemplate {
   hp: number;
   speed: number;
@@ -235,7 +304,13 @@ export class WaveSpawner {
     const tpl = ENEMY_TEMPLATES[type];
     const pos = this.pickSpawnPointOutsideView(player.x, player.y, angle);
     const hpScale = tpl.isBoss ? 1 : 1 + elapsed / 180;
-    const maxHp = Math.round(tpl.hp * hpScale);
+    const enhancedChance = Math.min(0.16, 0.09 + ((elapsed - 18) / 180) * 0.07);
+    const enhanced = !tpl.isBoss && elapsed >= 18 && Math.random() < enhancedChance;
+
+    const baseHp = Math.round(tpl.hp * hpScale);
+    const maxHp = enhanced ? baseHp * 3 : baseHp;
+    const damage = enhanced ? tpl.damage * 3 : tpl.damage;
+    const xpValue = enhanced ? tpl.xpValue * 3 : tpl.xpValue;
 
     return {
       id,
@@ -246,17 +321,18 @@ export class WaveSpawner {
       vy: 0,
       knockVx: 0,
       knockVy: 0,
-      radius: tpl.radius,
+      radius: enhanced ? tpl.radius + 1 : tpl.radius,
       hp: maxHp,
       maxHp,
       speed: tpl.speed + (Math.random() * 4 - 2),
-      damage: tpl.damage,
-      xpValue: tpl.xpValue,
-      gemKind: tpl.gemKind,
+      damage,
+      xpValue,
+      gemKind: enhanced ? 'red' : tpl.gemKind,
       facingX: pos.x >= player.x ? -1 : 1,
       animTimer: Math.random() * 0.5,
       hitFlashTimer: 0,
       isBoss: tpl.isBoss,
+      enhanced,
     };
   }
 }

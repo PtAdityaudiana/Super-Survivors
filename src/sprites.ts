@@ -1,4 +1,4 @@
-import type { EnemyType, GemKind, UpgradeId } from './types';
+import type { EnemyType, GemKind, PickupKind, UpgradeId } from './types';
 
 export interface AnimatedSpriteSet {
   framesRight: HTMLCanvasElement[];
@@ -18,7 +18,9 @@ export interface SpriteBank {
   gravestone: HTMLCanvasElement;
   bush: HTMLCanvasElement;
   gems: Record<GemKind, HTMLCanvasElement>;
-  roast: HTMLCanvasElement;
+  pickups: Record<PickupKind, HTMLCanvasElement>;
+  pickupIcons: Record<PickupKind, string>;
+  enemyPreviews: Record<EnemyType, string>;
   wandBolt: HTMLCanvasElement;
   icons: Record<UpgradeId, string>;
   heroPreviewUrl: string;
@@ -761,6 +763,94 @@ export function getSpriteBank(): SpriteBank {
     },
   );
 
+  const swiftBoots = createSprite(
+    [
+      '.....kkk..',
+      '....kwwck.',
+      '...kwccck.',
+      '..kbbkk...',
+      '.kbbbbk...',
+      '.kbbbbbkk.',
+      'kbbbbbbbbk',
+      'kggggggggk',
+      '.kkkkkkkk.',
+      '..........',
+    ],
+    {
+      k: '#090711',
+      w: '#f8fafc',
+      c: '#38bdf8',
+      b: '#4f46e5',
+      g: '#facc15',
+    },
+  );
+
+  const redPotion = createSprite(
+    [
+      '...kkkk...',
+      '...kcck...',
+      '..kkddkk..',
+      '...kggk...',
+      '..krrrrk..',
+      '.krwwrrrk.',
+      '.krrrrrrk.',
+      '.krrddddk.',
+      '..kddddk..',
+      '...kkkk...',
+    ],
+    {
+      k: '#16070c',
+      c: '#d97706',
+      d: '#991b1b',
+      g: '#cbd5e1',
+      r: '#ef4444',
+      w: '#fecaca',
+    },
+  );
+
+  const ironShield = createSprite(
+    [
+      '.kkkkkkkk.',
+      'ksssmmmmdk',
+      'ksmsssmmdk',
+      'kmswsssmmk',
+      'kmssmmmddk',
+      '.kmmddddk.',
+      '..kmdddk..',
+      '...kddk...',
+      '....kk....',
+      '..........',
+    ],
+    {
+      k: '#090711',
+      s: '#e2e8f0',
+      w: '#ffffff',
+      m: '#94a3b8',
+      d: '#475569',
+    },
+  );
+
+  const chest = createSprite(
+    [
+      '..kkkkkkkk..',
+      '.kggggggggk.',
+      'kgbggggggbgk',
+      'kggggggggggk',
+      'kgbbgrrgbbgk',
+      'kgggkrrkgggk',
+      'kgbbkkkkbbgk',
+      'kgbbbbbbbbgk',
+      'kggggggggggk',
+      '.kkkkkkkkkk.',
+    ],
+    {
+      k: '#090711',
+      g: '#facc15',
+      b: '#78350f',
+      r: '#ef4444',
+    },
+  );
+
   const wandBolt = createSprite(
     [
       '..kkkk..',
@@ -1009,7 +1099,27 @@ export function getSpriteBank(): SpriteBank {
       green: gemGreen,
       red: gemRed,
     },
-    roast,
+    pickups: {
+      roast,
+      swiftBoots,
+      redPotion,
+      ironShield,
+      chest,
+    },
+    pickupIcons: {
+      roast: spriteToDataUrl(roast, 4),
+      swiftBoots: spriteToDataUrl(swiftBoots, 4),
+      redPotion: spriteToDataUrl(redPotion, 4),
+      ironShield: spriteToDataUrl(ironShield, 4),
+      chest: spriteToDataUrl(chest, 4),
+    },
+    enemyPreviews: {
+      bat: spriteToDataUrl(batFrame0, 4),
+      skeleton: spriteToDataUrl(skelFrame0, 4),
+      zombie: spriteToDataUrl(zombieFrame0, 4),
+      wraith: spriteToDataUrl(wraithFrame0, 4),
+      boss: spriteToDataUrl(bossFrame0, 4),
+    },
     wandBolt,
     icons: {
       whip: spriteToDataUrl(whipIcon, 4),

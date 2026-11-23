@@ -1,13 +1,25 @@
 import type { SoundEngine } from './audio';
 import type { Game } from './game';
+import { ENEMY_COMPENDIUM } from './spawner';
 import type {
   GameState,
+  PickupKind,
   Player,
   SaveRecord,
+  UpgradeModalSource,
   UpgradeOption,
   WeaponId,
 } from './types';
-import { WEAPON_NAMES, getWeaponDetail } from './weapons';
+import {
+  ITEM_COMPENDIUM,
+  PASSIVE_COMPENDIUM,
+  WEAPON_NAMES,
+  getWeaponCompendium,
+  getWeaponDetail,
+} from './weapons';
+
+type MenuTab = 'home' | 'arsenal' | 'bestiary';
+type PendingConfirmAction = 'restart' | 'mainmenu' | null;
 
 export function formatTime(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -26,6 +38,7 @@ export class GameUI {
   private readonly levelupModalEl: HTMLElement;
   private readonly pauseModalEl: HTMLElement;
   private readonly gameoverModalEl: HTMLElement;
+  private readonly confirmModalEl: HTMLElement;
 
   // HUD dynamic elements
   private readonly xpFillEl: HTMLElement;
@@ -35,7 +48,22 @@ export class GameUI {
   private readonly hpFillHudEl: HTMLElement;
   private readonly hpTextEl: HTMLElement;
   private readonly killCountEl: HTMLElement;
+  private readonly buffBarEl: HTMLElement;
   private readonly bossBannerEl: HTMLElement;
+
+  // Main menu tabs & pages
+  private readonly tabHomeBtn: HTMLButtonElement;
+  private readonly tabArsenalBtn: HTMLButtonElement;
+  private readonly tabBestiaryBtn: HTMLButtonElement;
+  private readonly pageHomeEl: HTMLElement;
+  private readonly pageArsenalEl: HTMLElement;
+  private readonly pageBestiaryEl: HTMLElement;
+  private readonly btnGotoArsenalEl: HTMLButtonElement;
+  private readonly btnGotoBestiaryEl: HTMLButtonElement;
+  private readonly arsenalWeaponsEl: HTMLElement;
+  private readonly arsenalPassivesEl: HTMLElement;
+  private readonly arsenalItemsEl: HTMLElement;
+  private readonly bestiaryListEl: HTMLElement;
 
   // Buttons & Modal fields
   private readonly btnMuteEl: HTMLButtonElement;
@@ -43,10 +71,13 @@ export class GameUI {
   private readonly btnStartEl: HTMLButtonElement;
   private readonly btnResumeEl: HTMLButtonElement;
   private readonly btnRestartPauseEl: HTMLButtonElement;
+  private readonly btnMainMenuPauseEl: HTMLButtonElement;
   private readonly btnRetryEl: HTMLButtonElement;
   private readonly titleHeroImgEl: HTMLImageElement;
   private readonly titleRecordEl: HTMLElement;
+  private readonly levelupKickerEl: HTMLElement;
   private readonly levelupTitleEl: HTMLElement;
+  private readonly levelupHintEl: HTMLElement;
   private readonly upgradeCardsEl: HTMLElement;
   private readonly pauseHpEl: HTMLElement;
   private readonly pauseHpBarEl: HTMLElement;
@@ -58,13 +89,19 @@ export class GameUI {
   private readonly pauseMagnetEl: HTMLElement;
   private readonly pausePassivesEl: HTMLElement;
   private readonly pauseWeaponsListEl: HTMLElement;
+  private readonly confirmTitleEl: HTMLElement;
+  private readonly confirmMessageEl: HTMLElement;
+  private readonly btnConfirmCancelEl: HTMLButtonElement;
+  private readonly btnConfirmOkEl: HTMLButtonElement;
   private readonly goTimeEl: HTMLElement;
   private readonly goLevelEl: HTMLElement;
   private readonly goKillsEl: HTMLElement;
   private readonly goBestEl: HTMLElement;
   private readonly goWeaponsEl: HTMLElement;
 
-  // Cached values to avoid redundant DOM writes
+  // Cached UI state
+  private activeMenuTab: MenuTab = 'home';
+  private pendingConfirm: PendingConfirmAction = null;
   private lastTimerText = '';
   private lastLevelText = '';
   private lastXpPct = '';
@@ -72,6 +109,7 @@ export class GameUI {
   private lastHpText = '';
   private lastKillText = '';
   private lastWeaponsSig = '';
+  private lastBuffSig = '';
   private bossBannerTimer: number | null = null;
 
   constructor(game: Game, audio: SoundEngine) {
@@ -83,6 +121,7 @@ export class GameUI {
     this.levelupModalEl = this.mustGet('levelup-modal');
     this.pauseModalEl = this.mustGet('pause-modal');
     this.gameoverModalEl = this.mustGet('gameover-modal');
+    this.confirmModalEl = this.mustGet('confirm-modal');
 
     this.xpFillEl = this.mustGet('xp-fill');
     this.levelBadgeEl = this.mustGet('level-badge');
@@ -91,7 +130,21 @@ export class GameUI {
     this.hpFillHudEl = this.mustGet('hp-fill-hud');
     this.hpTextEl = this.mustGet('hp-text');
     this.killCountEl = this.mustGet('kill-count');
+    this.buffBarEl = this.mustGet('buff-bar');
     this.bossBannerEl = this.mustGet('boss-banner');
+
+    this.tabHomeBtn = this.mustGet('tab-btn-home') as HTMLButtonElement;
+    this.tabArsenalBtn = this.mustGet('tab-btn-arsenal') as HTMLButtonElement;
+    this.tabBestiaryBtn = this.mustGet('tab-btn-bestiary') as HTMLButtonElement;
+    this.pageHomeEl = this.mustGet('menu-page-home');
+    this.pageArsenalEl = this.mustGet('menu-page-arsenal');
+    this.pageBestiaryEl = this.mustGet('menu-page-bestiary');
+    this.btnGotoArsenalEl = this.mustGet('btn-goto-arsenal') as HTMLButtonElement;
+    this.btnGotoBestiaryEl = this.mustGet('btn-goto-bestiary') as HTMLButtonElement;
+    this.arsenalWeaponsEl = this.mustGet('arsenal-weapons');
+    this.arsenalPassivesEl = this.mustGet('arsenal-passives');
+    this.arsenalItemsEl = this.mustGet('arsenal-items');
+    this.bestiaryListEl = this.mustGet('bestiary-list');
 
     this.btnMuteEl = this.mustGet('btn-mute') as HTMLButtonElement;
     this.btnPauseEl = this.mustGet('btn-pause') as HTMLButtonElement;
@@ -100,10 +153,15 @@ export class GameUI {
     this.btnRestartPauseEl = this.mustGet(
       'btn-restart-pause',
     ) as HTMLButtonElement;
+    this.btnMainMenuPauseEl = this.mustGet(
+      'btn-mainmenu-pause',
+    ) as HTMLButtonElement;
     this.btnRetryEl = this.mustGet('btn-retry') as HTMLButtonElement;
     this.titleHeroImgEl = this.mustGet('title-hero-img') as HTMLImageElement;
     this.titleRecordEl = this.mustGet('title-record');
+    this.levelupKickerEl = this.mustGet('levelup-kicker');
     this.levelupTitleEl = this.mustGet('levelup-title');
+    this.levelupHintEl = this.mustGet('levelup-hint');
     this.upgradeCardsEl = this.mustGet('upgrade-cards');
     this.pauseHpEl = this.mustGet('pause-hp');
     this.pauseHpBarEl = this.mustGet('pause-hp-bar');
@@ -115,6 +173,12 @@ export class GameUI {
     this.pauseMagnetEl = this.mustGet('pause-magnet');
     this.pausePassivesEl = this.mustGet('pause-passives');
     this.pauseWeaponsListEl = this.mustGet('pause-weapons-list');
+    this.confirmTitleEl = this.mustGet('confirm-title');
+    this.confirmMessageEl = this.mustGet('confirm-message');
+    this.btnConfirmCancelEl = this.mustGet(
+      'btn-confirm-cancel',
+    ) as HTMLButtonElement;
+    this.btnConfirmOkEl = this.mustGet('btn-confirm-ok') as HTMLButtonElement;
     this.goTimeEl = this.mustGet('go-time');
     this.goLevelEl = this.mustGet('go-level');
     this.goKillsEl = this.mustGet('go-kills');
@@ -138,6 +202,228 @@ export class GameUI {
     this.titleHeroImgEl.src = sprites.heroPreviewUrl;
     this.updateTitleRecord(this.game.getRecord());
     this.syncMuteLabel();
+    this.renderCompendiumPages();
+    this.setMenuTab('home');
+  }
+
+  private renderCompendiumPages(): void {
+    const sprites = this.game.getSprites();
+
+    // 1. Weapons compendium
+    this.arsenalWeaponsEl.replaceChildren();
+    for (const w of getWeaponCompendium()) {
+      const card = document.createElement('div');
+      card.className = 'compendium-card';
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'compendium-icon';
+      const img = document.createElement('img');
+      img.className = 'pixel-img';
+      img.src = sprites.icons[w.id];
+      img.alt = w.name;
+      iconWrap.appendChild(img);
+
+      const body = document.createElement('div');
+      body.className = 'compendium-body';
+
+      const top = document.createElement('div');
+      top.className = 'compendium-top';
+      const name = document.createElement('span');
+      name.className = 'compendium-name';
+      name.textContent = w.name;
+      const tag = document.createElement('span');
+      tag.className = 'compendium-tag';
+      tag.textContent = w.role;
+      top.append(name, tag);
+
+      const desc = document.createElement('div');
+      desc.className = 'compendium-desc';
+      desc.textContent = w.summary;
+
+      const levels = document.createElement('div');
+      levels.className = 'compendium-levels';
+      w.levels.forEach((lvText, idx) => {
+        const line = document.createElement('span');
+        const lvNum = document.createElement('strong');
+        lvNum.textContent = `Lv ${idx + 1}: `;
+        line.append(lvNum, document.createTextNode(lvText));
+        levels.appendChild(line);
+      });
+
+      body.append(top, desc, levels);
+      card.append(iconWrap, body);
+      this.arsenalWeaponsEl.appendChild(card);
+    }
+
+    // 2. Passives compendium
+    this.arsenalPassivesEl.replaceChildren();
+    for (const p of PASSIVE_COMPENDIUM) {
+      const card = document.createElement('div');
+      card.className = 'compendium-card';
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'compendium-icon';
+      const img = document.createElement('img');
+      img.className = 'pixel-img';
+      img.src = sprites.icons[p.id];
+      img.alt = p.name;
+      iconWrap.appendChild(img);
+
+      const body = document.createElement('div');
+      body.className = 'compendium-body';
+
+      const top = document.createElement('div');
+      top.className = 'compendium-top';
+      const name = document.createElement('span');
+      name.className = 'compendium-name';
+      name.textContent = p.name;
+      const tag = document.createElement('span');
+      tag.className = 'compendium-tag';
+      tag.textContent = p.maxLabel;
+      top.append(name, tag);
+
+      const desc = document.createElement('div');
+      desc.className = 'compendium-desc';
+      desc.textContent = p.description;
+
+      body.append(top, desc);
+      card.append(iconWrap, body);
+      this.arsenalPassivesEl.appendChild(card);
+    }
+
+    // 3. Field Item Drops compendium
+    this.arsenalItemsEl.replaceChildren();
+    for (const item of ITEM_COMPENDIUM) {
+      const card = document.createElement('div');
+      card.className = 'compendium-card';
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'compendium-icon';
+      const img = document.createElement('img');
+      img.className = 'pixel-img';
+      img.src = sprites.pickupIcons[item.id];
+      img.alt = item.name;
+      iconWrap.appendChild(img);
+
+      const body = document.createElement('div');
+      body.className = 'compendium-body';
+
+      const top = document.createElement('div');
+      top.className = 'compendium-top';
+      const name = document.createElement('span');
+      name.className = 'compendium-name';
+      name.textContent = item.name;
+      const tag = document.createElement('span');
+      tag.className = 'compendium-tag crimson';
+      tag.textContent = item.tag;
+      top.append(name, tag);
+
+      const desc = document.createElement('div');
+      desc.className = 'compendium-desc';
+      desc.textContent = item.description;
+
+      body.append(top, desc);
+      card.append(iconWrap, body);
+      this.arsenalItemsEl.appendChild(card);
+    }
+
+    // 4. Enemy Bestiary
+    this.bestiaryListEl.replaceChildren();
+    for (const enemy of ENEMY_COMPENDIUM) {
+      const card = document.createElement('div');
+      card.className = 'compendium-card';
+
+      const iconWrap = document.createElement('div');
+      iconWrap.className = 'compendium-icon';
+      const img = document.createElement('img');
+      img.className = 'pixel-img';
+      img.src = sprites.enemyPreviews[enemy.type];
+      img.alt = enemy.name;
+      iconWrap.appendChild(img);
+
+      const body = document.createElement('div');
+      body.className = 'compendium-body';
+
+      const top = document.createElement('div');
+      top.className = 'compendium-top';
+      const name = document.createElement('span');
+      name.className = 'compendium-name';
+      name.textContent = enemy.name;
+      const tag = document.createElement('span');
+      tag.className =
+        enemy.type === 'boss' ? 'compendium-tag crimson' : 'compendium-tag';
+      tag.textContent = `MUNCUL ${enemy.spawnWindow}`;
+      top.append(name, tag);
+
+      const stats = document.createElement('div');
+      stats.className = 'bestiary-stats';
+      stats.textContent = `HP ${enemy.hp} • DMG ${enemy.damage} • SPD ${enemy.speed} • XP ${enemy.xpValue}`;
+
+      const desc = document.createElement('div');
+      desc.className = 'compendium-desc';
+      desc.textContent = enemy.description;
+
+      body.append(top, stats, desc);
+      card.append(iconWrap, body);
+      this.bestiaryListEl.appendChild(card);
+    }
+  }
+
+  private setMenuTab(tab: MenuTab): void {
+    this.activeMenuTab = tab;
+
+    this.pageHomeEl.classList.toggle('hidden', tab !== 'home');
+    this.pageArsenalEl.classList.toggle('hidden', tab !== 'arsenal');
+    this.pageBestiaryEl.classList.toggle('hidden', tab !== 'bestiary');
+
+    this.tabHomeBtn.classList.toggle('active', tab === 'home');
+    this.tabArsenalBtn.classList.toggle('active', tab === 'arsenal');
+    this.tabBestiaryBtn.classList.toggle('active', tab === 'bestiary');
+
+    this.tabHomeBtn.setAttribute('aria-selected', String(tab === 'home'));
+    this.tabArsenalBtn.setAttribute('aria-selected', String(tab === 'arsenal'));
+    this.tabBestiaryBtn.setAttribute(
+      'aria-selected',
+      String(tab === 'bestiary'),
+    );
+  }
+
+  private openConfirm(action: Exclude<PendingConfirmAction, null>): void {
+    this.pendingConfirm = action;
+    if (action === 'restart') {
+      this.confirmTitleEl.textContent = 'MULAI ULANG PERMAINAN?';
+      this.confirmMessageEl.textContent =
+        'Progres waktu bertahan, level, senjata, dan korban di sesi ini akan hilang.';
+    } else {
+      this.confirmTitleEl.textContent = 'KEMBALI KE MAIN MENU?';
+      this.confirmMessageEl.textContent =
+        'Permainan saat ini akan dihentikan dan progres sesi tidak disimpan.';
+    }
+    this.confirmModalEl.classList.remove('hidden');
+  }
+
+  private closeConfirm(): void {
+    this.pendingConfirm = null;
+    this.confirmModalEl.classList.add('hidden');
+  }
+
+  private executeConfirm(): void {
+    const action = this.pendingConfirm;
+    this.closeConfirm();
+    this.hideBossBanner();
+    if (action === 'restart') {
+      this.game.startNewRun();
+    } else if (action === 'mainmenu') {
+      this.game.returnToMainMenu();
+    }
+  }
+
+  private hideBossBanner(): void {
+    if (this.bossBannerTimer !== null) {
+      window.clearTimeout(this.bossBannerTimer);
+      this.bossBannerTimer = null;
+    }
+    this.bossBannerEl.classList.add('hidden');
   }
 
   private updateTitleRecord(record: SaveRecord): void {
@@ -149,23 +435,56 @@ export class GameUI {
   }
 
   private bindEvents(): void {
+    this.tabHomeBtn.addEventListener('click', () => this.setMenuTab('home'));
+    this.tabArsenalBtn.addEventListener('click', () =>
+      this.setMenuTab('arsenal'),
+    );
+    this.tabBestiaryBtn.addEventListener('click', () =>
+      this.setMenuTab('bestiary'),
+    );
+    this.btnGotoArsenalEl.addEventListener('click', () =>
+      this.setMenuTab('arsenal'),
+    );
+    this.btnGotoBestiaryEl.addEventListener('click', () =>
+      this.setMenuTab('bestiary'),
+    );
+
     this.btnStartEl.addEventListener('click', () => {
+      this.hideBossBanner();
       this.game.startNewRun();
     });
 
     this.btnRetryEl.addEventListener('click', () => {
+      this.hideBossBanner();
       this.game.startNewRun();
     });
 
     this.btnResumeEl.addEventListener('click', () => {
+      this.closeConfirm();
       this.game.resumeGame();
     });
 
     this.btnRestartPauseEl.addEventListener('click', () => {
-      this.game.startNewRun();
+      this.openConfirm('restart');
+    });
+
+    this.btnMainMenuPauseEl.addEventListener('click', () => {
+      this.openConfirm('mainmenu');
+    });
+
+    this.btnConfirmCancelEl.addEventListener('click', () => {
+      this.closeConfirm();
+    });
+
+    this.btnConfirmOkEl.addEventListener('click', () => {
+      this.executeConfirm();
     });
 
     this.btnPauseEl.addEventListener('click', () => {
+      if (this.pendingConfirm) {
+        this.closeConfirm();
+        return;
+      }
       this.game.togglePause();
     });
 
@@ -198,7 +517,16 @@ export class GameUI {
       const state = this.game.getState();
 
       if (state === 'title') {
-        if ((code === 'Enter' || code === 'Space') && !e.repeat) {
+        if (code === 'Escape' && !e.repeat && this.activeMenuTab !== 'home') {
+          this.setMenuTab('home');
+          return;
+        }
+        if (
+          (code === 'Enter' || code === 'Space') &&
+          !e.repeat &&
+          this.activeMenuTab === 'home'
+        ) {
+          this.hideBossBanner();
           this.game.startNewRun();
         }
         return;
@@ -206,6 +534,7 @@ export class GameUI {
 
       if (state === 'gameover') {
         if ((code === 'Enter' || code === 'Space') && !e.repeat) {
+          this.hideBossBanner();
           this.game.startNewRun();
         }
         return;
@@ -216,6 +545,13 @@ export class GameUI {
           if (code === 'Digit1' || code === 'Numpad1') this.game.chooseUpgrade(0);
           else if (code === 'Digit2' || code === 'Numpad2') this.game.chooseUpgrade(1);
           else if (code === 'Digit3' || code === 'Numpad3') this.game.chooseUpgrade(2);
+        }
+        return;
+      }
+
+      if (state === 'paused' && this.pendingConfirm !== null) {
+        if (code === 'Escape' && !e.repeat) {
+          this.closeConfirm();
         }
         return;
       }
@@ -245,16 +581,21 @@ export class GameUI {
     this.pauseModalEl.classList.toggle('hidden', state !== 'paused');
     this.gameoverModalEl.classList.toggle('hidden', state !== 'gameover');
 
+    if (state !== 'paused') {
+      this.closeConfirm();
+    }
+
     const showHud = state !== 'title';
     this.hudEl.classList.toggle('hidden', !showHud);
     this.hudEl.setAttribute('aria-hidden', showHud ? 'false' : 'true');
 
     if (state === 'title') {
       this.updateTitleRecord(this.game.getRecord());
-    }
-    if (state === 'playing' || state === 'title') {
-      // Clear cached weapon sig on fresh runs
-      if (state === 'title') this.lastWeaponsSig = '';
+      this.setMenuTab('home');
+      this.lastWeaponsSig = '';
+      this.lastBuffSig = '';
+      this.buffBarEl.classList.add('hidden');
+      this.buffBarEl.replaceChildren();
     }
   }
 
@@ -302,6 +643,67 @@ export class GameUI {
       this.lastWeaponsSig = sig;
       this.renderWeaponSlots(player);
     }
+
+    const swiftTenths =
+      player.buffs.swiftTimer > 0 ? Math.ceil(player.buffs.swiftTimer * 10) : 0;
+    const potionTenths =
+      player.buffs.potionTimer > 0 ? Math.ceil(player.buffs.potionTimer * 10) : 0;
+    const shieldTenths =
+      player.buffs.shieldTimer > 0 ? Math.ceil(player.buffs.shieldTimer * 10) : 0;
+    const buffSig = `${swiftTenths}|${potionTenths}|${shieldTenths}`;
+    if (buffSig !== this.lastBuffSig) {
+      this.lastBuffSig = buffSig;
+      this.renderBuffBar(player);
+    }
+  }
+
+  private renderBuffBar(player: Player): void {
+    const sprites = this.game.getSprites();
+    const active: Array<{
+      kind: PickupKind;
+      cls: string;
+      text: string;
+    }> = [];
+
+    if (player.buffs.swiftTimer > 0) {
+      active.push({
+        kind: 'swiftBoots',
+        cls: 'swift',
+        text: `+45% SPD ${player.buffs.swiftTimer.toFixed(1)}s`,
+      });
+    }
+    if (player.buffs.potionTimer > 0) {
+      active.push({
+        kind: 'redPotion',
+        cls: 'potion',
+        text: `+50% DMG ${player.buffs.potionTimer.toFixed(1)}s`,
+      });
+    }
+    if (player.buffs.shieldTimer > 0) {
+      active.push({
+        kind: 'ironShield',
+        cls: 'shield',
+        text: `KEBAL ${player.buffs.shieldTimer.toFixed(1)}s`,
+      });
+    }
+
+    this.buffBarEl.classList.toggle('hidden', active.length === 0);
+    this.buffBarEl.replaceChildren();
+    for (const b of active) {
+      const pill = document.createElement('div');
+      pill.className = `buff-pill ${b.cls}`;
+
+      const img = document.createElement('img');
+      img.className = 'pixel-img';
+      img.src = sprites.pickupIcons[b.kind];
+      img.alt = b.text;
+
+      const label = document.createElement('span');
+      label.textContent = b.text;
+
+      pill.append(img, label);
+      this.buffBarEl.appendChild(pill);
+    }
   }
 
   private renderWeaponSlots(player: Player): void {
@@ -336,9 +738,23 @@ export class GameUI {
     }
   }
 
-  public showLevelUp(player: Player, options: UpgradeOption[]): void {
+  public showLevelUp(
+    player: Player,
+    options: UpgradeOption[],
+    source: UpgradeModalSource,
+  ): void {
     const sprites = this.game.getSprites();
-    this.levelupTitleEl.textContent = `PILIH PENINGKATAN (LV ${player.level})`;
+    if (source === 'chest') {
+      this.levelupKickerEl.textContent = 'PETI HARTA DITEMUKAN!';
+      this.levelupTitleEl.textContent = 'PILIH HADIAH CHEST (+1 LEVEL)';
+      this.levelupHintEl.textContent =
+        'Chest memberi peningkatan gratis! Tekan [1], [2], [3] atau klik';
+    } else {
+      this.levelupKickerEl.textContent = 'NAIK LEVEL!';
+      this.levelupTitleEl.textContent = `PILIH PENINGKATAN (LV ${player.level})`;
+      this.levelupHintEl.textContent = 'Tekan [1], [2], [3] atau klik kartu';
+    }
+
     this.upgradeCardsEl.replaceChildren();
 
     options.forEach((opt, idx) => {
@@ -380,16 +796,35 @@ export class GameUI {
   }
 
   public showPause(player: Player, elapsed: number, kills: number): void {
+    this.closeConfirm();
     const sprites = this.game.getSprites();
     const hpPct = Math.min(100, Math.max(0, (player.hp / player.maxHp) * 100));
+
+    const effSpeed =
+      player.speedMult * (player.buffs.swiftTimer > 0 ? 1.45 : 1);
+    const effMight =
+      player.mightMult * (player.buffs.potionTimer > 0 ? 1.5 : 1);
 
     this.pauseHpEl.textContent = `${Math.ceil(player.hp)} / ${player.maxHp}`;
     this.pauseHpBarEl.style.width = `${hpPct.toFixed(1)}%`;
     this.pauseLevelEl.textContent = `LV ${player.level} (${player.xp}/${player.xpToNext} XP)`;
     this.pauseTimeEl.textContent = formatTime(elapsed);
     this.pauseKillsEl.textContent = String(kills);
-    this.pauseSpeedEl.textContent = `${Math.round(player.speedMult * 100)}%`;
-    this.pauseMightEl.textContent = `${Math.round(player.mightMult * 100)}%`;
+
+    this.pauseSpeedEl.textContent =
+      player.buffs.swiftTimer > 0
+        ? `${Math.round(effSpeed * 100)}% (+BUFF)`
+        : `${Math.round(effSpeed * 100)}%`;
+    this.pauseSpeedEl.className =
+      player.buffs.swiftTimer > 0 ? 'stat-val cyan' : 'stat-val';
+
+    this.pauseMightEl.textContent =
+      player.buffs.potionTimer > 0
+        ? `${Math.round(effMight * 100)}% (+BUFF)`
+        : `${Math.round(effMight * 100)}%`;
+    this.pauseMightEl.className =
+      player.buffs.potionTimer > 0 ? 'stat-val gold' : 'stat-val';
+
     this.pauseMagnetEl.textContent = `${Math.round(player.pickupRadius)}px`;
 
     // Active passive stacks
@@ -420,7 +855,7 @@ export class GameUI {
     this.pauseWeaponsListEl.replaceChildren();
     for (const wid of player.weaponOrder) {
       const wState = player.weapons[wid];
-      const detail = getWeaponDetail(wid, wState.level, player.mightMult);
+      const detail = getWeaponDetail(wid, wState.level, effMight);
 
       const item = document.createElement('div');
       item.className = 'pause-weapon-item';
@@ -466,6 +901,7 @@ export class GameUI {
     kills: number,
     record: SaveRecord,
   ): void {
+    this.hideBossBanner();
     const sprites = this.game.getSprites();
     this.goTimeEl.textContent = formatTime(elapsed);
     this.goLevelEl.textContent = String(player.level);

@@ -65,63 +65,147 @@
             </div>
           </div>
 
+          <div id="buff-bar" class="buff-bar hidden" aria-label="Buff Aktif"></div>
+
           <div id="boss-banner" class="boss-banner hidden">
             RAJA TENGKORAK BANGKIT!
           </div>
         </div>
 
-        <!-- TITLE SCREEN -->
+        <!-- TITLE SCREEN (MULTI-PAGE MAIN MENU) -->
         <div id="title-screen" class="overlay-screen">
           <div class="pixel-panel title-panel">
-            <div class="title-eyebrow">GOTHIC PIXEL SURVIVOR</div>
-            <h1 class="game-title">SUPER<br />SURVIVORS</h1>
-
-            <div class="hero-showcase">
-              <div class="hero-frame">
-                <img
-                  id="title-hero-img"
-                  class="pixel-img hero-preview"
-                  alt="Pemburu Vampir"
-                />
-              </div>
-              <div class="hero-lore">
-                <div class="lore-name">PEMBURU MALAM</div>
-                <div class="lore-sub">Senjata Awal: Cambuk Darah</div>
-              </div>
-            </div>
-
-            <div class="controls-box">
-              <div class="controls-title">KONTROL</div>
-              <div class="controls-grid">
-                <span><kbd>WASD</kbd> / <kbd>PANAH</kbd> : Gerak</span>
-                <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> : Pilih Upgrade</span>
-                <span><kbd>ESC</kbd> / <kbd>P</kbd> : Jeda</span>
-                <span><kbd>M</kbd> : Bisu / Suara</span>
-              </div>
-              <div class="auto-attack-note">Semua senjata menyerang otomatis!</div>
-            </div>
-
-            <div id="title-record" class="record-banner">
-              REKOR TERBAIK: 00:00 &bull; 0 KORBAN
-            </div>
-
-            <div class="title-actions">
-              <button id="btn-start" class="pixel-btn primary-btn" type="button">
-                MULAI BERBURU
+            <div class="menu-tabs" role="tablist" aria-label="Navigasi Menu Utama">
+              <button
+                id="tab-btn-home"
+                class="menu-tab-btn active"
+                type="button"
+                role="tab"
+                aria-selected="true"
+              >
+                BERANDA
               </button>
+              <button
+                id="tab-btn-arsenal"
+                class="menu-tab-btn"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                SENJATA &amp; PASIF
+              </button>
+              <button
+                id="tab-btn-bestiary"
+                class="menu-tab-btn"
+                type="button"
+                role="tab"
+                aria-selected="false"
+              >
+                ENTITAS MUSUH
+              </button>
+            </div>
+
+            <!-- PAGE 1: BERANDA -->
+            <div id="menu-page-home" class="menu-page">
+              <div class="home-header">
+                <div class="title-eyebrow">GOTHIC PIXEL SURVIVOR</div>
+                <h1 class="game-title">SUPER SURVIVORS</h1>
+              </div>
+
+              <div class="home-top-grid">
+                <div class="hero-showcase">
+                  <div class="hero-frame">
+                    <img
+                      id="title-hero-img"
+                      class="pixel-img hero-preview"
+                      alt="Pemburu Vampir"
+                    />
+                  </div>
+                  <div class="hero-lore">
+                    <div class="lore-name">PEMBURU MALAM</div>
+                    <div class="lore-sub">Senjata Awal: Cambuk Darah (Auto-Aim)</div>
+                    <div class="lore-desc">
+                      Bertahanlah di kuburan gothic dari gerombolan malam dan boss tiap 2 menit!
+                    </div>
+                  </div>
+                </div>
+
+                <div class="basic-info-box">
+                  <div class="controls-title">INFO DASAR</div>
+                  <ul class="basic-info-list">
+                    <li>Semua senjata menyerang otomatis.</li>
+                    <li>Kalahkan musuh <strong>Enhanced</strong> (3x HP/DMG) untuk Red Gem 3x XP!</li>
+                    <li>Kumpulkan Drop Acak &amp; <strong>Chest</strong> untuk +1 level bonus.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div class="controls-box">
+                <div class="controls-title">KONTROL</div>
+                <div class="controls-grid">
+                  <span><kbd>WASD</kbd> / <kbd>PANAH</kbd> : Gerak</span>
+                  <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> : Pilih Upgrade</span>
+                  <span><kbd>ESC</kbd> / <kbd>P</kbd> : Jeda &amp; Status</span>
+                  <span><kbd>M</kbd> : Bisu / Suara</span>
+                </div>
+              </div>
+
+              <div id="title-record" class="record-banner">
+                REKOR TERBAIK: 00:00 &bull; 0 KORBAN
+              </div>
+
+              <div class="title-actions">
+                <button id="btn-start" class="pixel-btn primary-btn" type="button">
+                  MULAI BERBURU
+                </button>
+                <button id="btn-goto-arsenal" class="pixel-btn secondary-btn" type="button">
+                  LIHAT SENJATA
+                </button>
+                <button id="btn-goto-bestiary" class="pixel-btn secondary-btn" type="button">
+                  LIHAT MUSUH
+                </button>
+              </div>
+            </div>
+
+            <!-- PAGE 2: SENJATA & PASIF -->
+            <div id="menu-page-arsenal" class="menu-page compendium-scroll hidden">
+              <div class="compendium-section">
+                <div class="compendium-heading">SENJATA UTAMA (LV 1 &ndash; 5)</div>
+                <div id="arsenal-weapons" class="compendium-list"></div>
+              </div>
+              <div class="compendium-section">
+                <div class="compendium-heading">PENINGKATAN PASIF</div>
+                <div id="arsenal-passives" class="compendium-grid"></div>
+              </div>
+              <div class="compendium-section">
+                <div class="compendium-heading">ITEM DROP MEDAN TEMPUR</div>
+                <div id="arsenal-items" class="compendium-grid"></div>
+              </div>
+            </div>
+
+            <!-- PAGE 3: ENTITAS MUSUH -->
+            <div id="menu-page-bestiary" class="menu-page compendium-scroll hidden">
+              <div class="enhanced-callout">
+                <span class="enhanced-tag">VARIAN ENHANCED</span>
+                <span>
+                  Musuh biasa berpeluang muncul dalam wujud <strong>Enhanced</strong> beraura emas-merah:
+                  <strong>3x HP</strong>, <strong>3x Damage</strong>, menjatuhkan <strong>Red Gem (3x XP)</strong>, serta berpeluang tinggi menjatuhkan Item / Chest!
+                </span>
+              </div>
+              <div id="bestiary-list" class="compendium-list"></div>
             </div>
           </div>
         </div>
 
-        <!-- LEVEL UP MODAL -->
+        <!-- LEVEL UP / CHEST MODAL -->
         <div id="levelup-modal" class="overlay-screen modal-backdrop hidden">
           <div class="pixel-panel levelup-panel">
             <div class="modal-header">
-              <div class="levelup-kicker">NAIK LEVEL!</div>
+              <div id="levelup-kicker" class="levelup-kicker">NAIK LEVEL!</div>
               <h2 id="levelup-title" class="modal-title">PILIH PENINGKATAN</h2>
             </div>
             <div id="upgrade-cards" class="upgrade-cards"></div>
-            <div class="modal-hint">Tekan [1], [2], [3] atau klik kartu</div>
+            <div id="levelup-hint" class="modal-hint">Tekan [1], [2], [3] atau klik kartu</div>
           </div>
         </div>
 
@@ -189,6 +273,28 @@
               </button>
               <button id="btn-restart-pause" class="pixel-btn danger-btn" type="button">
                 MULAI ULANG
+              </button>
+              <button id="btn-mainmenu-pause" class="pixel-btn warning-btn" type="button">
+                MAIN MENU
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CONFIRMATION WARNING MODAL -->
+        <div id="confirm-modal" class="overlay-screen modal-backdrop confirm-backdrop hidden">
+          <div class="pixel-panel confirm-panel">
+            <div class="confirm-kicker">PERINGATAN!</div>
+            <h3 id="confirm-title" class="confirm-title">KONFIRMASI AKSI</h3>
+            <p id="confirm-message" class="confirm-message">
+              Progres permainan saat ini tidak akan disimpan.
+            </p>
+            <div class="confirm-actions">
+              <button id="btn-confirm-cancel" class="pixel-btn secondary-btn" type="button">
+                BATAL
+              </button>
+              <button id="btn-confirm-ok" class="pixel-btn danger-btn" type="button">
+                YA, LANJUTKAN
               </button>
             </div>
           </div>

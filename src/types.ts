@@ -11,6 +11,10 @@ export type EnemyType = 'bat' | 'skeleton' | 'zombie' | 'wraith' | 'boss';
 
 export type GemKind = 'blue' | 'green' | 'red';
 
+export type PickupKind = 'roast' | 'swiftBoots' | 'redPotion' | 'ironShield' | 'chest';
+
+export type UpgradeModalSource = 'levelup' | 'chest';
+
 export interface WeaponState {
   id: WeaponId;
   level: number;
@@ -43,6 +47,11 @@ export interface Player {
     might: number;
     magnet: number;
   };
+  buffs: {
+    swiftTimer: number;
+    potionTimer: number;
+    shieldTimer: number;
+  };
 }
 
 export interface Enemy {
@@ -65,6 +74,7 @@ export interface Enemy {
   animTimer: number;
   hitFlashTimer: number;
   isBoss: boolean;
+  enhanced: boolean;
 }
 
 export interface Projectile {
@@ -122,8 +132,7 @@ export interface XpGem {
 export interface Pickup {
   x: number;
   y: number;
-  kind: 'roast';
-  healAmount: number;
+  kind: PickupKind;
   bobOffset: number;
 }
 

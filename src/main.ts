@@ -15,7 +15,8 @@ function bootstrap(): void {
   const game = new Game(canvas, audio, {
     onStateChange: (state) => ui.handleStateChange(state),
     onHudUpdate: (player, elapsed, kills) => ui.updateHud(player, elapsed, kills),
-    onLevelUpOpen: (player, options) => ui.showLevelUp(player, options),
+    onLevelUpOpen: (player, options, source) =>
+      ui.showLevelUp(player, options, source),
     onPauseOpen: (player, elapsed, kills) => ui.showPause(player, elapsed, kills),
     onGameOver: (player, elapsed, kills, record) =>
       ui.showGameOver(player, elapsed, kills, record),

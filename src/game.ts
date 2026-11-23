@@ -10,10 +10,12 @@ import {
   type HitEffect,
   type Particle,
   type Pickup,
+  type PickupKind,
   type Player,
   type Projectile,
   type SaveRecord,
   type UpgradeId,
+  type UpgradeModalSource,
   type UpgradeOption,
   type WhipSlash,
   type XpGem,
@@ -23,6 +25,7 @@ import {
   getAuraStats,
   getWandStats,
   getWhipStats,
+  rollChestOptions,
   rollUpgradeOptions,
 } from './weapons';
 
@@ -31,7 +34,11 @@ const RECORD_STORAGE_KEY = 'super-survivors-record';
 export interface GameCallbacks {
   onStateChange: (state: GameState) => void;
   onHudUpdate: (player: Player, elapsed: number, kills: number) => void;
-  onLevelUpOpen: (player: Player, options: UpgradeOption[]) => void;
+  onLevelUpOpen: (
+    player: Player,
+    options: UpgradeOption[],
+    source: UpgradeModalSource,
+  ) => void;
   onPauseOpen: (player: Player, elapsed: number, kills: number) => void;
   onGameOver: (
     player: Player,
@@ -80,6 +87,7 @@ export class Game {
   private auraVisualFlash = 0;
   private screenShakeTimer = 0;
   private damageOverlayTimer = 0;
+  private shieldBlockTextCooldown = 0;
   private levelUpInputLock = 0;
   private currentOptions: UpgradeOption[] = [];
 
@@ -174,6 +182,7 @@ export class Game {
     this.auraVisualFlash = 0;
     this.screenShakeTimer = 0;
     this.damageOverlayTimer = 0;
+    this.shieldBlockTextCooldown = 0;
     this.levelUpInputLock = 0;
     this.currentOptions = [];
     this.spawner.reset();
@@ -199,6 +208,37 @@ export class Game {
     if (this.state === 'paused') {
       this.setState('playing');
     }
+  }
+
+  public returnToMainMenu(): void {
+    this.clearKeys();
+    this.enemies = [];
+    this.projectiles = [];
+    this.slashes = [];
+    this.gems = [];
+    this.pickups = [];
+    this.particles = [];
+    this.hitEffects = [];
+    this.damageNumbers = [];
+    this.pendingWandShots = [];
+    this.nextEntityId = 1;
+    this.elapsed = 0;
+    this.kills = 0;
+    this.xpCombo = 0;
+    this.xpComboTimer = 0;
+    this.idleTimer = 0;
+    this.stepDustTimer = 0;
+    this.auraPulseTimer = 0;
+    this.auraWaveProgress = 1;
+    this.auraVisualFlash = 0;
+    this.screenShakeTimer = 0;
+    this.damageOverlayTimer = 0;
+    this.shieldBlockTextCooldown = 0;
+    this.levelUpInputLock = 0;
+    this.currentOptions = [];
+    this.spawner.reset();
+    this.player = this.createInitialPlayer();
+    this.setState('title');
   }
 
   public chooseUpgrade(index: number): void {
@@ -263,7 +303,20 @@ export class Game {
         might: 0,
         magnet: 0,
       },
+      buffs: {
+        swiftTimer: 0,
+        potionTimer: 0,
+        shieldTimer: 0,
+      },
     };
+  }
+
+  private getEffectiveSpeedMult(): number {
+    return this.player.speedMult * (this.player.buffs.swiftTimer > 0 ? 1.45 : 1);
+  }
+
+  private getEffectiveMightMult(): number {
+    return this.player.mightMult * (this.player.buffs.potionTimer > 0 ? 1.5 : 1);
   }
 
   private calcXpToNext(level: number): number {
@@ -320,6 +373,42 @@ export class Game {
     }
     if (this.damageOverlayTimer > 0) {
       this.damageOverlayTimer = Math.max(0, this.damageOverlayTimer - dt);
+    }
+    if (this.shieldBlockTextCooldown > 0) {
+      this.shieldBlockTextCooldown = Math.max(0, this.shieldBlockTextCooldown - dt);
+    }
+    if (this.player.buffs.swiftTimer > 0) {
+      this.player.buffs.swiftTimer = Math.max(0, this.player.buffs.swiftTimer - dt);
+      if (this.player.isMoving && Math.random() < dt * 18) {
+        this.particles.push({
+          x: this.player.x + (Math.random() * 8 - 4),
+          y: this.player.y + 4,
+          vx: (Math.random() - 0.5) * 16,
+          vy: -8 - Math.random() * 10,
+          size: 2,
+          color: '#38bdf8',
+          life: 0.22,
+          maxLife: 0.22,
+        });
+      }
+    }
+    if (this.player.buffs.potionTimer > 0) {
+      this.player.buffs.potionTimer = Math.max(0, this.player.buffs.potionTimer - dt);
+      if (Math.random() < dt * 14) {
+        this.particles.push({
+          x: this.player.x + (Math.random() * 10 - 5),
+          y: this.player.y + 3,
+          vx: (Math.random() - 0.5) * 10,
+          vy: -16 - Math.random() * 12,
+          size: Math.random() < 0.5 ? 2 : 1,
+          color: Math.random() < 0.6 ? '#ef4444' : '#facc15',
+          life: 0.28,
+          maxLife: 0.28,
+        });
+      }
+    }
+    if (this.player.buffs.shieldTimer > 0) {
+      this.player.buffs.shieldTimer = Math.max(0, this.player.buffs.shieldTimer - dt);
     }
     if (this.xpComboTimer > 0) {
       this.xpComboTimer -= dt;
@@ -379,16 +468,17 @@ export class Game {
     if (moveX < 0) this.player.facingX = -1;
     else if (moveX > 0) this.player.facingX = 1;
 
-    const speed = this.player.baseSpeed * this.player.speedMult;
+    const speedMult = this.getEffectiveSpeedMult();
+    const speed = this.player.baseSpeed * speedMult;
     this.player.x += moveX * speed * dt;
     this.player.y += moveY * speed * dt;
 
     if (this.player.isMoving) {
-      this.player.walkTimer += dt * 9.5 * this.player.speedMult;
+      this.player.walkTimer += dt * 9.5 * speedMult;
       this.idleTimer = 0;
       this.stepDustTimer -= dt;
       if (this.stepDustTimer <= 0) {
-        this.stepDustTimer = 0.18 / Math.max(0.8, this.player.speedMult);
+        this.stepDustTimer = 0.18 / Math.max(0.8, speedMult);
         const count = Math.random() < 0.45 ? 2 : 1;
         for (let i = 0; i < count; i++) {
           this.particles.push({
@@ -472,7 +562,7 @@ export class Game {
         ? 0
         : Math.PI;
 
-    const dmg = Math.round(stats.damage * this.player.mightMult);
+    const dmg = Math.round(stats.damage * this.getEffectiveMightMult());
     this.slashes.push({
       originX: this.player.x,
       originY: this.player.y - 2,
@@ -507,7 +597,7 @@ export class Game {
   }
 
   private fireWand(stats: ReturnType<typeof getWandStats>): void {
-    const dmg = Math.round(stats.damage * this.player.mightMult);
+    const dmg = Math.round(stats.damage * this.getEffectiveMightMult());
     for (let i = 0; i < stats.count; i++) {
       this.pendingWandShots.push({
         delay: i * 0.08, // staggered 80ms burst
@@ -581,7 +671,7 @@ export class Game {
   }
 
   private tickAura(stats: ReturnType<typeof getAuraStats>): void {
-    const dmg = Math.round(stats.damage * this.player.mightMult);
+    const dmg = Math.round(stats.damage * this.getEffectiveMightMult());
     let hitAny = false;
     this.auraWaveProgress = 0;
 
@@ -800,7 +890,7 @@ export class Game {
     );
 
     if (enemy.isBoss) {
-      // Burst of 5 red gems + guaranteed roast pickup
+      // Burst of 5 red gems + guaranteed roast + guaranteed chest
       for (let i = 0; i < 5; i++) {
         const angle = (Math.PI * 2 * i) / 5 + Math.random() * 0.4;
         const dist = 10 + Math.random() * 12;
@@ -815,11 +905,16 @@ export class Game {
         });
       }
       this.pickups.push({
-        x: enemy.x,
+        x: enemy.x - 10,
         y: enemy.y,
         kind: 'roast',
-        healAmount: 30,
         bobOffset: 0,
+      });
+      this.pickups.push({
+        x: enemy.x + 10,
+        y: enemy.y,
+        kind: 'chest',
+        bobOffset: 1.5,
       });
       return;
     }
@@ -834,15 +929,51 @@ export class Game {
       bobOffset: Math.random() * Math.PI * 2,
     });
 
-    if (this.player.hp < this.player.maxHp * 0.75 && Math.random() < 0.015) {
+    if (enemy.enhanced) {
+      if (Math.random() < 0.3) {
+        this.pickups.push({
+          x: enemy.x + 6,
+          y: enemy.y + 2,
+          kind: this.rollRandomItem(true),
+          bobOffset: Math.random() * Math.PI * 2,
+        });
+      }
+    } else if (Math.random() < 0.038) {
       this.pickups.push({
         x: enemy.x + 4,
         y: enemy.y + 4,
-        kind: 'roast',
-        healAmount: 30,
+        kind: this.rollRandomItem(false),
         bobOffset: Math.random() * Math.PI * 2,
       });
     }
+  }
+
+  private rollRandomItem(fromEnhanced: boolean): PickupKind {
+    if (fromEnhanced) {
+      const r = Math.random();
+      if (r < 0.25) return 'chest';
+      if (r < 0.45) return 'roast';
+      if (r < 0.65) return 'swiftBoots';
+      if (r < 0.85) return 'redPotion';
+      return 'ironShield';
+    }
+
+    const roastWeight = this.player.hp >= this.player.maxHp * 0.9 ? 18 : 30;
+    const entries: Array<{ kind: PickupKind; w: number }> = [
+      { kind: 'roast', w: roastWeight },
+      { kind: 'swiftBoots', w: 24 },
+      { kind: 'redPotion', w: 24 },
+      { kind: 'ironShield', w: 16 },
+      { kind: 'chest', w: 6 },
+    ];
+    let total = 0;
+    for (const entry of entries) total += entry.w;
+    let roll = Math.random() * total;
+    for (const entry of entries) {
+      roll -= entry.w;
+      if (roll <= 0) return entry.kind;
+    }
+    return 'roast';
   }
 
   private updateEnemies(dt: number): void {
@@ -940,13 +1071,31 @@ export class Game {
       }
     }
 
-    // 3. Contact damage against player
-    if (this.player.invulnTimer <= 0) {
-      for (const e of this.enemies) {
-        const dx = e.x - px;
-        const dy = e.y - py;
-        const hitR = e.radius + this.player.radius - 1;
-        if (dx * dx + dy * dy <= hitR * hitR) {
+    // 3. Contact damage & Iron Shield immunity against player
+    for (const e of this.enemies) {
+      const dx = e.x - px;
+      const dy = e.y - py;
+      const hitR = e.radius + this.player.radius - 1;
+      if (dx * dx + dy * dy <= hitR * hitR) {
+        if (this.player.buffs.shieldTimer > 0) {
+          const dist = Math.hypot(dx, dy) || 1;
+          const push = e.isBoss ? 22 : 95;
+          e.knockVx += (dx / dist) * push;
+          e.knockVy += (dy / dist) * push;
+          this.audio.playShieldBlock();
+          if (this.shieldBlockTextCooldown <= 0) {
+            this.shieldBlockTextCooldown = 0.35;
+            this.damageNumbers.push({
+              x: this.player.x,
+              y: this.player.y - 16,
+              vy: -18,
+              text: 'KEBAL!',
+              color: '#e2e8f0',
+              life: 0.45,
+              maxLife: 0.45,
+            });
+          }
+        } else if (this.player.invulnTimer <= 0) {
           this.hurtPlayer(e.damage);
           break;
         }
@@ -1030,12 +1179,21 @@ export class Game {
     this.audio.playLevelUp();
     this.callbacks.onHudUpdate(this.player, this.elapsed, this.kills);
     this.setState('levelup');
-    this.callbacks.onLevelUpOpen(this.player, this.currentOptions);
+    this.callbacks.onLevelUpOpen(this.player, this.currentOptions, 'levelup');
+  }
+
+  private triggerChestModal(): void {
+    this.clearKeys();
+    this.levelUpInputLock = 0.35;
+    this.currentOptions = rollChestOptions(this.player);
+    this.audio.playChest();
+    this.callbacks.onHudUpdate(this.player, this.elapsed, this.kills);
+    this.setState('levelup');
+    this.callbacks.onLevelUpOpen(this.player, this.currentOptions, 'chest');
   }
 
   private updatePickups(dt: number): void {
-    const attractSq = (this.player.pickupRadius * 0.8) ** 2;
-    const collectSq = 12 * 12;
+    const collectSq = 13 * 13;
 
     for (let i = this.pickups.length - 1; i >= 0; i--) {
       const p = this.pickups[i];
@@ -1043,25 +1201,69 @@ export class Game {
       const dy = this.player.y - p.y;
       const dSq = dx * dx + dy * dy;
 
-      if (dSq <= attractSq) {
+      const attractRadius =
+        p.kind === 'chest' ? 24 : this.player.pickupRadius * 0.75;
+      if (dSq <= attractRadius * attractRadius) {
         const dist = Math.sqrt(dSq) || 1;
-        p.x += (dx / dist) * 140 * dt;
-        p.y += (dy / dist) * 140 * dt;
+        p.x += (dx / dist) * 135 * dt;
+        p.y += (dy / dist) * 135 * dt;
       }
 
       if (dSq <= collectSq) {
-        this.player.hp = Math.min(this.player.maxHp, this.player.hp + p.healAmount);
-        this.audio.playHeal();
-        this.damageNumbers.push({
-          x: this.player.x,
-          y: this.player.y - 14,
-          vy: -20,
-          text: `+${p.healAmount} HP`,
-          color: '#4ade80',
-          life: 0.65,
-          maxLife: 0.65,
-        });
         this.pickups.splice(i, 1);
+
+        if (p.kind === 'roast') {
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + 30);
+          this.audio.playHeal();
+          this.damageNumbers.push({
+            x: this.player.x,
+            y: this.player.y - 14,
+            vy: -20,
+            text: '+30 HP',
+            color: '#4ade80',
+            life: 0.65,
+            maxLife: 0.65,
+          });
+        } else if (p.kind === 'swiftBoots') {
+          this.player.buffs.swiftTimer = 8;
+          this.audio.playBuff();
+          this.damageNumbers.push({
+            x: this.player.x,
+            y: this.player.y - 14,
+            vy: -20,
+            text: 'SWIFT +45%!',
+            color: '#38bdf8',
+            life: 0.75,
+            maxLife: 0.75,
+          });
+        } else if (p.kind === 'redPotion') {
+          this.player.buffs.potionTimer = 10;
+          this.audio.playBuff();
+          this.damageNumbers.push({
+            x: this.player.x,
+            y: this.player.y - 14,
+            vy: -20,
+            text: 'DMG +50%!',
+            color: '#facc15',
+            life: 0.75,
+            maxLife: 0.75,
+          });
+        } else if (p.kind === 'ironShield') {
+          this.player.buffs.shieldTimer = 3;
+          this.audio.playShield();
+          this.damageNumbers.push({
+            x: this.player.x,
+            y: this.player.y - 14,
+            vy: -20,
+            text: 'KEBAL 3 DETIK!',
+            color: '#e2e8f0',
+            life: 0.8,
+            maxLife: 0.8,
+          });
+        } else {
+          this.triggerChestModal();
+          return;
+        }
       }
     }
   }
@@ -1332,9 +1534,16 @@ export class Game {
 
     for (const pickup of this.pickups) {
       const bob = Math.round(Math.sin(this.elapsed * 4 + pickup.bobOffset));
-      const sprite = this.sprites.roast;
+      const sprite = this.sprites.pickups[pickup.kind];
       const sx = Math.round(pickup.x - camX - sprite.width / 2);
       const sy = Math.round(pickup.y - camY - sprite.height / 2 + bob);
+
+      if (pickup.kind === 'chest') {
+        const glowAlpha = 0.25 + 0.15 * Math.sin(this.elapsed * 6);
+        ctx.fillStyle = `rgba(250, 204, 21, ${glowAlpha.toFixed(2)})`;
+        ctx.fillRect(sx - 2, sy - 2, sprite.width + 4, sprite.height + 4);
+      }
+
       ctx.drawImage(sprite, sx, sy);
     }
   }
@@ -1403,6 +1612,11 @@ export class Game {
       !isFlash &&
       Math.floor(this.player.invulnTimer * 24) % 2 === 0;
 
+    if (this.player.buffs.potionTimer > 0) {
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.28)';
+      ctx.fillRect(px - 7, py + 4, 14, 4);
+    }
+
     if (!blinkHide) {
       const spriteSet = this.player.isMoving
         ? this.sprites.hero
@@ -1418,6 +1632,22 @@ export class Game {
         Math.round(px - sprite.width / 2),
         Math.round(py - sprite.height / 2),
       );
+    }
+
+    if (this.player.buffs.shieldTimer > 0) {
+      const shieldR = 11;
+      const dotCount = 12;
+      const spin = this.elapsed * 4.5;
+      for (let i = 0; i < dotCount; i++) {
+        const a = spin + (Math.PI * 2 * i) / dotCount;
+        ctx.fillStyle = i % 2 === 0 ? '#e2e8f0' : '#38bdf8';
+        ctx.fillRect(
+          Math.round(px + Math.cos(a) * shieldR) - 1,
+          Math.round(py + Math.sin(a) * shieldR) - 1,
+          2,
+          2,
+        );
+      }
     }
 
     // Crisp mini HP bar beneath player
@@ -1452,12 +1682,20 @@ export class Game {
       return;
     }
 
-    // Boss crimson aura ring on the ground
+    // Boss crimson aura ring / Enhanced crimson-gold ring on the ground
     if (e.isBoss) {
       ctx.fillStyle = 'rgba(220, 38, 38, 0.25)';
       ctx.fillRect(ex - 11, ey + 6, 22, 6);
       ctx.fillStyle = '#dc2626';
       ctx.fillRect(ex - 10, ey + 8, 20, 2);
+    } else if (e.enhanced) {
+      const pulse = Math.sin(this.elapsed * 8 + e.id) > 0;
+      ctx.fillStyle = pulse
+        ? 'rgba(250, 204, 21, 0.34)'
+        : 'rgba(220, 38, 38, 0.34)';
+      ctx.fillRect(ex - 7, ey + Math.round(set.height / 2) - 3, 14, 4);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(ex - 6, ey + Math.round(set.height / 2) - 2, 12, 2);
     } else {
       ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
       ctx.fillRect(ex - 4, ey + Math.round(set.height / 2) - 2, 8, 2);
@@ -1476,9 +1714,17 @@ export class Game {
       Math.round(ey - sprite.height / 2),
     );
 
-    // Boss mini health bar
-    if (e.isBoss) {
-      const barW = 24;
+    if (e.enhanced) {
+      // Gold corner glint markers so Enhanced enemies stand out
+      const glintY = ey - Math.round(set.height / 2) - 1;
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(ex - Math.round(set.width / 2) - 1, glintY, 2, 2);
+      ctx.fillRect(ex + Math.round(set.width / 2) - 1, glintY, 2, 2);
+    }
+
+    // Boss & Enhanced mini health bars
+    if (e.isBoss || e.enhanced) {
+      const barW = e.isBoss ? 24 : 16;
       const barX = ex - barW / 2;
       const barY = ey - Math.round(set.height / 2) - 6;
       const ratio = Math.max(0, Math.min(1, e.hp / e.maxHp));
@@ -1486,7 +1732,7 @@ export class Game {
       ctx.fillRect(barX - 1, barY - 1, barW + 2, 4);
       ctx.fillStyle = '#3f0f19';
       ctx.fillRect(barX, barY, barW, 2);
-      ctx.fillStyle = '#facc15';
+      ctx.fillStyle = e.isBoss ? '#facc15' : '#ef4444';
       ctx.fillRect(barX, barY, Math.round(barW * ratio), 2);
     }
   }

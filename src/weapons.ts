@@ -1,4 +1,10 @@
-import type { Player, UpgradeId, UpgradeOption, WeaponId } from './types';
+import type {
+  PickupKind,
+  Player,
+  UpgradeId,
+  UpgradeOption,
+  WeaponId,
+} from './types';
 
 export interface WhipStats {
   damage: number;
@@ -301,6 +307,179 @@ export function rollUpgradeOptions(player: Player): UpgradeOption[] {
       chosen.push({
         ...healOpt,
         description: 'Semua perlengkapan penuh. Pulihkan 40 HP.',
+      });
+    }
+  }
+
+  return chosen;
+}
+
+export interface WeaponCompendiumEntry {
+  id: WeaponId;
+  name: string;
+  role: string;
+  summary: string;
+  levels: string[];
+}
+
+export interface PassiveCompendiumEntry {
+  id: Exclude<UpgradeId, WeaponId>;
+  name: string;
+  maxLabel: string;
+  description: string;
+}
+
+export interface ItemCompendiumEntry {
+  id: PickupKind;
+  name: string;
+  tag: string;
+  description: string;
+}
+
+export function getWeaponCompendium(): WeaponCompendiumEntry[] {
+  return [
+    {
+      id: 'whip',
+      name: WEAPON_NAMES.whip,
+      role: 'Auto-Aim Jarak Dekat–Menengah',
+      summary:
+        'Senjata awal Pemburu Malam. Membidik otomatis musuh terdekat 360° dengan sabetan cambuk lentur dan knockback tinggi.',
+      levels: [...WHIP_DESCS],
+    },
+    {
+      id: 'wand',
+      name: WEAPON_NAMES.wand,
+      role: 'Proyektil Pelacak Cepat',
+      summary:
+        'Menembakkan rentetan baut sihir ke musuh terdekat. Efektif menghabisi target berbaris setelah mendapat pierce.',
+      levels: [...WAND_DESCS],
+    },
+    {
+      id: 'aura',
+      name: WEAPON_NAMES.aura,
+      role: 'Area Pertahanan 360°',
+      summary:
+        'Memancarkan lingkaran rune suci di sekitar karakter yang melukai dan mendorong mundur kepungan musuh setiap denyut.',
+      levels: [...AURA_DESCS],
+    },
+  ];
+}
+
+export const PASSIVE_COMPENDIUM: PassiveCompendiumEntry[] = [
+  {
+    id: 'maxHp',
+    name: 'Vitalitas',
+    maxLabel: 'MAX 5 STACK',
+    description: '+25 Max HP permanen per stack dan langsung memulihkan 25 HP.',
+  },
+  {
+    id: 'speed',
+    name: 'Sepatu Bayangan',
+    maxLabel: 'MAX 4 STACK',
+    description: '+12% kecepatan gerak permanen untuk menghindari kepungan.',
+  },
+  {
+    id: 'might',
+    name: 'Kekuatan Gelap',
+    maxLabel: 'MAX 5 STACK',
+    description: '+15% damage permanen untuk seluruh senjata yang dipakai.',
+  },
+  {
+    id: 'magnet',
+    name: 'Magnet Jiwa',
+    maxLabel: 'MAX 4 STACK',
+    description: '+35% radius tarikan kristal XP di medan pertempuran.',
+  },
+  {
+    id: 'heal',
+    name: 'Daging Panggang (Upgrade)',
+    maxLabel: 'KONSUMSI',
+    description: 'Muncul saat darah di bawah 75% atau perlengkapan sudah penuh; memulihkan 40 HP.',
+  },
+];
+
+export const ITEM_COMPENDIUM: ItemCompendiumEntry[] = [
+  {
+    id: 'roast',
+    name: 'Daging Panggang',
+    tag: 'PULIH +30 HP',
+    description: 'Drop acak dari musuh maupun boss yang langsung memulihkan 30 HP.',
+  },
+  {
+    id: 'swiftBoots',
+    name: 'Swift Boots',
+    tag: 'BUFF 8 DETIK',
+    description: 'Memberi tambahan kecepatan gerak +45% sementara beserta jejak angin cepat.',
+  },
+  {
+    id: 'redPotion',
+    name: 'Red Potion',
+    tag: 'BUFF 10 DETIK',
+    description: 'Meningkatkan damage seluruh senjata sebesar +50% sementara.',
+  },
+  {
+    id: 'ironShield',
+    name: 'Iron Shield',
+    tag: 'KEBAL 3 DETIK',
+    description: 'Melindungi pemburu dengan perisai besi sehingga kebal dari semua damage selama 3 detik.',
+  },
+  {
+    id: 'chest',
+    name: 'Chest',
+    tag: '+1 LEVEL PILIHAN',
+    description: 'Membuka 3 pilihan peningkatan +1 level untuk salah satu senjata atau pasif aktif.',
+  },
+];
+
+export function rollChestOptions(player: Player): UpgradeOption[] {
+  const lockedWeapons: UpgradeOption[] = [];
+  const existingWeapons: UpgradeOption[] = [];
+  const statPool: UpgradeOption[] = [];
+
+  const weaponIds: WeaponId[] = ['whip', 'wand', 'aura'];
+  for (const wid of weaponIds) {
+    const lv = player.weapons[wid].level;
+    if (lv === 0) {
+      lockedWeapons.push(buildWeaponOption(wid, 0));
+    } else if (lv < MAX_WEAPON_LEVEL) {
+      existingWeapons.push(buildWeaponOption(wid, lv));
+    }
+  }
+
+  if (player.statStacks.maxHp < 5) statPool.push(buildStatOption('maxHp', player));
+  if (player.statStacks.speed < 4) statPool.push(buildStatOption('speed', player));
+  if (player.statStacks.might < 5) statPool.push(buildStatOption('might', player));
+  if (player.statStacks.magnet < 4) statPool.push(buildStatOption('magnet', player));
+
+  shuffleInPlace(lockedWeapons);
+  shuffleInPlace(existingWeapons);
+  shuffleInPlace(statPool);
+
+  const combined = shuffleInPlace([
+    ...existingWeapons,
+    ...lockedWeapons,
+    ...statPool,
+  ]);
+
+  const chosen: UpgradeOption[] = [];
+  const chosenIds = new Set<UpgradeId>();
+  for (const opt of combined) {
+    if (chosen.length >= 3) break;
+    if (!chosenIds.has(opt.id)) {
+      chosenIds.add(opt.id);
+      chosen.push(opt);
+    }
+  }
+
+  while (chosen.length < 3) {
+    const healOpt = buildStatOption('heal', player);
+    if (!chosenIds.has('heal')) {
+      chosenIds.add('heal');
+      chosen.push(healOpt);
+    } else {
+      chosen.push({
+        ...healOpt,
+        description: 'Semua senjata & pasif sudah maksimal. Pulihkan 40 HP.',
       });
     }
   }

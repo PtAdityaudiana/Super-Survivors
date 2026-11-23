@@ -3,6 +3,7 @@ export class SoundEngine {
   private muted = false;
   private lastHitTime = 0;
   private lastXpTime = 0;
+  private lastShieldBlockTime = 0;
 
   constructor() {
     try {
@@ -163,6 +164,30 @@ export class SoundEngine {
   public playHeal(): void {
     this.playTone(440, 660, 0.1, 'triangle', 0.065, 0);
     this.playTone(660, 880, 0.12, 'triangle', 0.065, 0.08);
+  }
+
+  public playBuff(): void {
+    this.playTone(523, 659, 0.09, 'triangle', 0.065, 0);
+    this.playTone(659, 987, 0.13, 'square', 0.05, 0.07);
+  }
+
+  public playShield(): void {
+    this.playTone(392, 587, 0.12, 'triangle', 0.065, 0);
+    this.playTone(784, 1046, 0.16, 'square', 0.045, 0.06);
+  }
+
+  public playShieldBlock(): void {
+    const now = performance.now();
+    if (now - this.lastShieldBlockTime < 220) return;
+    this.lastShieldBlockTime = now;
+    this.playTone(920, 640, 0.07, 'square', 0.045);
+  }
+
+  public playChest(): void {
+    const notes = [392, 494, 587, 784, 988];
+    notes.forEach((n, idx) => {
+      this.playTone(n, n * 1.03, 0.13, 'square', 0.06, idx * 0.065);
+    });
   }
 
   public playBossSpawn(): void {
