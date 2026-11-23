@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Super Survivors — Pixel Gothic Action</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <div id="game-wrapper">
+        <canvas id="game-canvas" width="480" height="270"></canvas>
+
+        <!-- HUD -->
+        <div id="hud" class="hud hidden" aria-hidden="true">
+          <div class="xp-bar-row">
+            <div class="xp-track">
+              <div id="xp-fill" class="xp-fill"></div>
+            </div>
+            <div id="level-badge" class="level-badge">LV 1</div>
+          </div>
+
+          <div class="hud-top-bar">
+            <div id="weapon-slots" class="weapon-slots" aria-label="Senjata Aktif"></div>
+
+            <div class="hud-center">
+              <div id="timer-display" class="timer-display">00:00</div>
+              <div class="hp-readout">
+                <span class="hp-heart">HP</span>
+                <div class="hp-bar-mini">
+                  <div id="hp-fill-hud" class="hp-fill-hud"></div>
+                </div>
+                <span id="hp-text" class="hp-text">100/100</span>
+              </div>
+            </div>
+
+            <div class="hud-right">
+              <div class="kill-counter" title="Musuh Dikalahkan">
+                <span class="kill-label">KORBAN</span>
+                <span id="kill-count" class="kill-value">0</span>
+              </div>
+              <div class="hud-actions">
+                <button
+                  id="btn-mute"
+                  class="pixel-btn icon-btn"
+                  type="button"
+                  title="Suara (M)"
+                >
+                  SFX ON
+                </button>
+                <button
+                  id="btn-pause"
+                  class="pixel-btn icon-btn"
+                  type="button"
+                  title="Jeda (ESC / P)"
+                >
+                  II
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div id="boss-banner" class="boss-banner hidden">
+            RAJA TENGKORAK BANGKIT!
+          </div>
+        </div>
+
+        <!-- TITLE SCREEN -->
+        <div id="title-screen" class="overlay-screen">
+          <div class="pixel-panel title-panel">
+            <div class="title-eyebrow">GOTHIC PIXEL SURVIVOR</div>
+            <h1 class="game-title">SUPER<br />SURVIVORS</h1>
+
+            <div class="hero-showcase">
+              <div class="hero-frame">
+                <img
+                  id="title-hero-img"
+                  class="pixel-img hero-preview"
+                  alt="Pemburu Vampir"
+                />
+              </div>
+              <div class="hero-lore">
+                <div class="lore-name">PEMBURU MALAM</div>
+                <div class="lore-sub">Senjata Awal: Cambuk Darah</div>
+              </div>
+            </div>
+
+            <div class="controls-box">
+              <div class="controls-title">KONTROL</div>
+              <div class="controls-grid">
+                <span><kbd>WASD</kbd> / <kbd>PANAH</kbd> : Gerak</span>
+                <span><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> : Pilih Upgrade</span>
+                <span><kbd>ESC</kbd> / <kbd>P</kbd> : Jeda</span>
+                <span><kbd>M</kbd> : Bisu / Suara</span>
+              </div>
+              <div class="auto-attack-note">Semua senjata menyerang otomatis!</div>
+            </div>
+
+            <div id="title-record" class="record-banner">
+              REKOR TERBAIK: 00:00 &bull; 0 KORBAN
+            </div>
+
+            <div class="title-actions">
+              <button id="btn-start" class="pixel-btn primary-btn" type="button">
+                MULAI BERBURU
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- LEVEL UP MODAL -->
+        <div id="levelup-modal" class="overlay-screen modal-backdrop hidden">
+          <div class="pixel-panel levelup-panel">
+            <div class="modal-header">
+              <div class="levelup-kicker">NAIK LEVEL!</div>
+              <h2 id="levelup-title" class="modal-title">PILIH PENINGKATAN</h2>
+            </div>
+            <div id="upgrade-cards" class="upgrade-cards"></div>
+            <div class="modal-hint">Tekan [1], [2], [3] atau klik kartu</div>
+          </div>
+        </div>
+
+        <!-- PAUSE MODAL -->
+        <div id="pause-modal" class="overlay-screen modal-backdrop hidden">
+          <div class="pixel-panel pause-panel">
+            <div class="pause-header">
+              <h2 class="modal-title">JEDA</h2>
+              <p class="modal-subtitle">STATUS PEMBURU &amp; PERSENJATAAN</p>
+            </div>
+
+            <div class="pause-content">
+              <div class="pause-stats-col">
+                <div class="pause-section-title">STATISTIK SAAT INI</div>
+                <div class="pause-hp-block">
+                  <div class="pause-stat-row">
+                    <span>DARAH (HP)</span>
+                    <span id="pause-hp" class="stat-val crimson">100 / 100</span>
+                  </div>
+                  <div class="pause-hp-track">
+                    <div id="pause-hp-bar" class="pause-hp-fill"></div>
+                  </div>
+                </div>
+                <div class="pause-stats-list">
+                  <div class="pause-stat-row">
+                    <span>LEVEL &amp; XP</span>
+                    <span id="pause-level" class="stat-val cyan">LV 1</span>
+                  </div>
+                  <div class="pause-stat-row">
+                    <span>WAKTU BERTAHAN</span>
+                    <span id="pause-time" class="stat-val gold">00:00</span>
+                  </div>
+                  <div class="pause-stat-row">
+                    <span>MUSUH DIKALAHKAN</span>
+                    <span id="pause-kills" class="stat-val crimson">0</span>
+                  </div>
+                  <div class="pause-stat-row">
+                    <span>KECEPATAN GERAK</span>
+                    <span id="pause-speed" class="stat-val">100%</span>
+                  </div>
+                  <div class="pause-stat-row">
+                    <span>KEKUATAN SERANGAN</span>
+                    <span id="pause-might" class="stat-val">100%</span>
+                  </div>
+                  <div class="pause-stat-row">
+                    <span>RADIUS MAGNET XP</span>
+                    <span id="pause-magnet" class="stat-val">34px</span>
+                  </div>
+                </div>
+                <div class="pause-passives-block">
+                  <div class="pause-sub-label">PASIF AKTIF</div>
+                  <div id="pause-passives" class="pause-passive-chips"></div>
+                </div>
+              </div>
+
+              <div class="pause-weapons-col">
+                <div class="pause-section-title">SENJATA AKTIF</div>
+                <div id="pause-weapons-list" class="pause-weapons-list"></div>
+              </div>
+            </div>
+
+            <div class="pause-actions">
+              <button id="btn-resume" class="pixel-btn primary-btn" type="button">
+                LANJUTKAN
+              </button>
+              <button id="btn-restart-pause" class="pixel-btn danger-btn" type="button">
+                MULAI ULANG
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- GAME OVER MODAL -->
+        <div id="gameover-modal" class="overlay-screen modal-backdrop hidden">
+          <div class="pixel-panel gameover-panel">
+            <div class="gameover-kicker">MALAM TELAH MENELANMU</div>
+            <h2 class="modal-title gameover-title">GUGUR</h2>
+
+            <div class="stats-grid">
+              <div class="stat-row">
+                <span>WAKTU BERTAHAN</span>
+                <span id="go-time" class="stat-val gold">00:00</span>
+              </div>
+              <div class="stat-row">
+                <span>LEVEL DICAPAI</span>
+                <span id="go-level" class="stat-val cyan">1</span>
+              </div>
+              <div class="stat-row">
+                <span>MUSUH DIKALAHKAN</span>
+                <span id="go-kills" class="stat-val crimson">0</span>
+              </div>
+              <div class="stat-row">
+                <span>REKOR TERBAIK</span>
+                <span id="go-best" class="stat-val gold">00:00 &bull; 0</span>
+              </div>
+            </div>
+
+            <div class="go-weapons-section">
+              <div class="go-weapons-title">PERSENJATAAN AKHIR</div>
+              <div id="go-weapons" class="go-weapons-list"></div>
+            </div>
+
+            <div class="title-actions">
+              <button id="btn-retry" class="pixel-btn primary-btn" type="button">
+                MAIN LAGI
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
