@@ -4,6 +4,14 @@ Game **survivor-like** bergaya *Dark Fantasy / Gothic* pixelated yang dibangun m
 
 ---
 
+## Preview Model Pixel-Art
+
+![Preview Model Pixel-Art Super Survivors](assets/all_models_sheet.png)
+
+> Seluruh aset PNG (karakter, musuh, senjata, pasif, item drop, dan tile lingkungan) tersedia di folder [`assets/`](assets/).
+
+---
+
 ## Fitur Utama
 
 - **Grafis Pixel-Art Tajam (`480×270`)**: Dirender dengan `imageSmoothingEnabled = false` dan `image-rendering: pixelated`, lengkap dengan latar kuburan gothic *infinite tiling*, batu nisan prosedural, serta animasi karakter utama *Pemburu Malam* (4-frame jalan + 2-frame *idle*).
@@ -72,6 +80,7 @@ npm run preview
 ├── index.html             # Struktur Canvas, HUD, Main Menu, dan Modal
 ├── package.json           # Konfigurasi proyek & skrip Vite/TypeScript
 ├── tsconfig.json          # Konfigurasi TypeScript (strict mode)
+├── assets/                # Ekspor PNG model karakter, musuh, senjata, item, & tile
 └── src/
     ├── main.ts            # Entry point & pengikatan Game + GameUI
     ├── style.css          # Tema gothic pixel UI & tata letak 16:9
